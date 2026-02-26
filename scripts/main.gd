@@ -8,6 +8,7 @@ var renderer: GridRenderer
 var city_gen: CityGen
 var slime_sim: SlimeSim
 var player_input: Node
+var hud: CanvasLayer
 var current_band: int = 0
 
 @onready var grid_display: TextureRect = $GridDisplay
@@ -46,6 +47,11 @@ func _ready() -> void:
 	player_input.camera = sim_camera
 	add_child(player_input)
 
+	# Setup HUD
+	hud = preload("res://scripts/ui/hud.gd").new()
+	hud.slime_sim = slime_sim
+	add_child(hud)
+
 
 func _clear_area(cx: int, cy: int, radius: int) -> void:
 	var w := grid.width
@@ -72,11 +78,6 @@ func _physics_process(_delta: float) -> void:
 	slime_sim.decay_attractors_band(band_start, band_end)
 
 	current_band = (current_band + 1) % NUM_BANDS
-
-	# Debug: print stats every 60 frames (~1 sec)
-	if Engine.get_physics_frames() % 60 == 0:
-		var stats := slime_sim.get_stats()
-		print("Slime cells: %d  Consumed: %d" % [stats["cells"], stats["consumed"]])
 
 	# Render
 	renderer.render()
