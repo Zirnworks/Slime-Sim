@@ -18,6 +18,11 @@ var slime_flow_y: PackedFloat32Array
 # Player attractor field
 var attractor: PackedFloat32Array
 
+# Global growth target (set by player click)
+var target_pos: Vector2i = Vector2i(-1, -1)
+var has_target: bool = false
+var target_strength: float = 0.0
+
 
 func init(w: int, h: int) -> void:
 	width = w

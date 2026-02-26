@@ -61,4 +61,25 @@ func render() -> void:
 
 			image.set_pixel(x, y, color)
 
+	# Draw target marker — always on top, solid bright color
+	if grid.has_target:
+		var tx := grid.target_pos.x
+		var ty := grid.target_pos.y
+		# Pulsing glow ring around a solid center
+		var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.008)
+		var center_color := Color(1.0, 0.15, 0.3, 1.0)  # solid bright red
+		var ring_color := Color(1.0, 0.5, 0.2, pulse)     # pulsing orange ring
+		# Ring at radius 3
+		for dy in range(-3, 4):
+			for dx in range(-3, 4):
+				var dist_sq := dx * dx + dy * dy
+				var px := tx + dx
+				var py := ty + dy
+				if px < 0 or px >= w or py < 0 or py >= h:
+					continue
+				if dist_sq <= 2:  # solid center (3x3 diamond)
+					image.set_pixel(px, py, center_color)
+				elif dist_sq >= 5 and dist_sq <= 9:  # ring
+					image.set_pixel(px, py, ring_color)
+
 	texture.update(image)

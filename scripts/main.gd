@@ -44,7 +44,6 @@ func _ready() -> void:
 	player_input = preload("res://scripts/input/player_input.gd").new()
 	player_input.grid = grid
 	player_input.camera = sim_camera
-	player_input.grid_display = grid_display
 	add_child(player_input)
 
 

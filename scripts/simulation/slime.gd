@@ -2,14 +2,17 @@ class_name SlimeSim
 extends RefCounted
 
 # Tuning knobs
-const EAT_RATE := 0.15         # damage per tick to adjacent cells
-const COLONIZE_MASS := 1.0     # mass given to newly consumed cells
+const EAT_RATE := 0.06         # base damage per tick (slower eating)
+const MATURE_THRESHOLD := 0.8  # mass needed to eat/colonize neighbors
+const MASS_GROWTH := 0.04      # how fast immature slime cells grow toward 1.0
 const TRAIL_DEPOSIT := 0.3
 const TRAIL_DECAY := 0.98
 const TRAIL_DIFFUSE := 0.15
 const NOISE_AMOUNT := 0.2
 const ATTRACTOR_WEIGHT := 5.0
 const TRAIL_WEIGHT := 2.0
+const TARGET_BIAS := 15.0         # how strongly the global target influences growth direction
+const TARGET_RANGE := 80.0        # max distance (pixels) for target influence — tight for tendrils
 
 # Cardinal directions
 const DIR_X: Array[int] = [1, -1, 0, 0]
@@ -46,11 +49,26 @@ func update_band(band_start: int, band_end: int) -> void:
 	var st := grid.slime_trail
 	var attr := grid.attractor
 
+	# Cache global target info
+	var has_target := grid.has_target
+	var target_x: int = grid.target_pos.x if has_target else 0
+	var target_y: int = grid.target_pos.y if has_target else 0
+	var t_strength: float = grid.target_strength if has_target else 0.0
+
 	for y in range(band_start, mini(band_end, h)):
 		var row_off := y * w
 		for x in range(w):
 			var idx := row_off + x
 			if sm[idx] < 0.01:
+				continue
+
+			# --- MATURE: immature slime slowly grows toward 1.0 ---
+			if sm[idx] < 1.0:
+				sm[idx] = minf(sm[idx] + MASS_GROWTH, 1.0)
+
+			# Only mature cells can eat and spread
+			if sm[idx] < MATURE_THRESHOLD:
+				st[idx] += TRAIL_DEPOSIT * 0.3
 				continue
 
 			var is_frontier := false
@@ -71,31 +89,48 @@ func update_band(band_start: int, band_end: int) -> void:
 				is_frontier = true
 
 				if ntype == Materials.CellType.EMPTY:
-					# Empty cell — colonize it immediately
-					sm[nidx] = COLONIZE_MASS
+					# Empty cell — colonize immediately at full strength
+					sm[nidx] = 1.0
 					cells_consumed += 1
 					continue
 
 				# Eat the cell: flat rate scaled by inverse resistance
 				var resistance: float = Materials.RESISTANCE[ntype]
-				var eat_power := EAT_RATE * (1.0 - resistance * 0.7)
+				var eat_power := EAT_RATE * (1.0 - resistance * 0.8)
 
 				# Attractor boost: eat faster toward attractors
 				var attract_val: float = attr[nidx]
 				if attract_val > 0.1:
 					eat_power *= 1.0 + attract_val
 
+				# Global target bias: boost eating in the direction of the target
+				if has_target:
+					var dx_t := target_x - x
+					var dy_t := target_y - y
+					var dist_sq_t := dx_t * dx_t + dy_t * dy_t
+					if dist_sq_t > 0:
+						var dist_t := sqrt(float(dist_sq_t))
+						if dist_t < TARGET_RANGE:
+							# How much this eat direction aligns with target direction
+							var alignment := (DIR_X[d] * dx_t + DIR_Y[d] * dy_t) / dist_t
+							if alignment > 0.0:
+								# Steep falloff: strongest near target, zero at TARGET_RANGE
+								var falloff := 1.0 - dist_t / TARGET_RANGE
+								falloff *= falloff  # quadratic for sharper tendril focus
+								eat_power *= 1.0 + TARGET_BIAS * t_strength * alignment * falloff
+
 				# Random variation for organic feel
 				eat_power *= 0.5 + randf()
 
 				ce[nidx] -= eat_power
 				if ce[nidx] <= 0:
-					# Consumed! Colonize with slime
+					# Consumed! Colonize with low mass — needs time to mature
 					cells_consumed += 1
 					grid.cell_type_under[nidx] = ntype
 					ct[nidx] = Materials.CellType.EMPTY
 					ce[nidx] = 0.0
-					sm[nidx] = COLONIZE_MASS
+					# Building cells start weak, open terrain starts strong
+					sm[nidx] = 1.0 - resistance * 0.8
 
 			# --- TRAIL: frontier cells deposit more ---
 			if is_frontier:
