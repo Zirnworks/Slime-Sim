@@ -54,6 +54,7 @@ func update_band(band_start: int, band_end: int) -> void:
 	var target_x: int = grid.target_pos.x if has_target else 0
 	var target_y: int = grid.target_pos.y if has_target else 0
 	var t_strength: float = grid.target_strength if has_target else 0.0
+	var growth_vel: float = grid.growth_velocity
 
 	for y in range(band_start, mini(band_end, h)):
 		var row_off := y * w
@@ -64,7 +65,7 @@ func update_band(band_start: int, band_end: int) -> void:
 
 			# --- MATURE: immature slime slowly grows toward 1.0 ---
 			if sm[idx] < 1.0:
-				sm[idx] = minf(sm[idx] + MASS_GROWTH, 1.0)
+				sm[idx] = minf(sm[idx] + MASS_GROWTH * growth_vel, 1.0)
 
 			# Only mature cells can eat and spread
 			if sm[idx] < MATURE_THRESHOLD:
@@ -96,7 +97,7 @@ func update_band(band_start: int, band_end: int) -> void:
 
 				# Eat the cell: flat rate scaled by inverse resistance
 				var resistance: float = Materials.RESISTANCE[ntype]
-				var eat_power := EAT_RATE * (1.0 - resistance * 0.8)
+				var eat_power := EAT_RATE * (1.0 - resistance * 0.8) * growth_vel
 
 				# Attractor boost: eat faster toward attractors
 				var attract_val: float = attr[nidx]
@@ -164,7 +165,7 @@ func diffuse_trails_band(band_start: int, band_end: int) -> void:
 			st[idx] = (center * (1.0 - TRAIL_DIFFUSE) + neighbor_avg * TRAIL_DIFFUSE) * TRAIL_DECAY
 
 
-func decay_attractors_band(band_start: int, band_end: int) -> void:
+func decay_attractors_band(band_start: int, band_end: int, band_index: int) -> void:
 	var w := grid.width
 	var h := grid.height
 	var attr := grid.attractor
@@ -174,6 +175,19 @@ func decay_attractors_band(band_start: int, band_end: int) -> void:
 			var idx := row_off + x
 			if absf(attr[idx]) > 0.001:
 				attr[idx] *= 0.99
+
+	# Decay burn intensity
+	var burn := grid.burn_intensity
+	for y in range(band_start, mini(band_end, grid.height)):
+		var row_off := y * w
+		for x in range(w):
+			var bidx := row_off + x
+			if burn[bidx] > 0.001:
+				burn[bidx] *= 0.985
+
+	# Decay growth velocity once per full cycle (on first band only)
+	if band_index == 0 and grid.growth_velocity > 1.0:
+		grid.growth_velocity = maxf(1.0, grid.growth_velocity * 0.998)
 
 
 func get_stats() -> Dictionary:

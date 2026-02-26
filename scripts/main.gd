@@ -9,6 +9,7 @@ var city_gen: CityGen
 var slime_sim: SlimeSim
 var player_input: Node
 var hud: CanvasLayer
+var entities: EntityManager
 var current_band: int = 0
 
 @onready var grid_display: TextureRect = $GridDisplay
@@ -47,9 +48,15 @@ func _ready() -> void:
 	player_input.camera = sim_camera
 	add_child(player_input)
 
+	# Setup entities
+	entities = EntityManager.new()
+	entities.init(grid, 20, 35)
+	renderer.entities = entities
+
 	# Setup HUD
 	hud = preload("res://scripts/ui/hud.gd").new()
 	hud.slime_sim = slime_sim
+	hud.grid = grid
 	add_child(hud)
 
 
@@ -73,9 +80,10 @@ func _physics_process(_delta: float) -> void:
 	var band_start := current_band * band_height
 	var band_end := band_start + band_height
 
+	entities.update()
 	slime_sim.update_band(band_start, band_end)
 	slime_sim.diffuse_trails_band(band_start, band_end)
-	slime_sim.decay_attractors_band(band_start, band_end)
+	slime_sim.decay_attractors_band(band_start, band_end, current_band)
 
 	current_band = (current_band + 1) % NUM_BANDS
 

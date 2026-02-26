@@ -4,6 +4,7 @@ extends RefCounted
 var image: Image
 var texture: ImageTexture
 var grid: Grid
+var entities: EntityManager
 var display: TextureRect
 
 
@@ -59,27 +60,66 @@ func render() -> void:
 				if energy < 1.0 and ct[idx] != Materials.CellType.EMPTY:
 					color = color.darkened((1.0 - energy) * 0.5)
 
+			# Burn overlay: marshmallow effect — fire → embers → brown → black char
+			var burn_val: float = grid.burn_intensity[idx]
+			if burn_val > 0.03:
+				if burn_val > 0.7:
+					# White-hot fire core
+					var fire := Color(1.0, 0.8, 0.2)
+					color = color.lerp(fire, 0.9)
+				elif burn_val > 0.4:
+					# Orange/red embers
+					var t := (burn_val - 0.4) / 0.3
+					var ember := Color(1.0, 0.25 + t * 0.35, 0.0)
+					color = color.lerp(ember, 0.7 + t * 0.2)
+				elif burn_val > 0.15:
+					# Brown char
+					var t := (burn_val - 0.15) / 0.25
+					var brown := Color(0.25, 0.12, 0.05)
+					color = color.lerp(brown, 0.4 + t * 0.3)
+				else:
+					# Dark blackened char (lingering)
+					color = color.darkened(burn_val * 3.0)
+
 			image.set_pixel(x, y, color)
 
-	# Draw target marker — always on top, solid bright color
+	# Draw player target marker — white, large, distinct blink
 	if grid.has_target:
 		var tx := grid.target_pos.x
 		var ty := grid.target_pos.y
-		# Pulsing glow ring around a solid center
-		var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.008)
-		var center_color := Color(1.0, 0.15, 0.3, 1.0)  # solid bright red
-		var ring_color := Color(1.0, 0.5, 0.2, pulse)     # pulsing orange ring
-		# Ring at radius 3
-		for dy in range(-3, 4):
-			for dx in range(-3, 4):
-				var dist_sq := dx * dx + dy * dy
-				var px := tx + dx
-				var py := ty + dy
-				if px < 0 or px >= w or py < 0 or py >= h:
-					continue
-				if dist_sq <= 2:  # solid center (3x3 diamond)
-					image.set_pixel(px, py, center_color)
-				elif dist_sq >= 5 and dist_sq <= 9:  # ring
-					image.set_pixel(px, py, ring_color)
+		# Sharp on/off blink (visible 70% of the time)
+		var blink := fmod(Time.get_ticks_msec() * 0.003, 1.0) < 0.7
+		if blink:
+			var center_color := Color(1.0, 1.0, 1.0, 1.0)  # solid white
+			var ring_color := Color(0.8, 0.9, 1.0, 0.9)     # pale blue-white ring
+			# Radius 4 for larger marker
+			for dy in range(-4, 5):
+				for dx in range(-4, 5):
+					var dist_sq := dx * dx + dy * dy
+					var px := tx + dx
+					var py := ty + dy
+					if px < 0 or px >= w or py < 0 or py >= h:
+						continue
+					if dist_sq <= 3:  # solid center (wider diamond)
+						image.set_pixel(px, py, center_color)
+					elif dist_sq >= 9 and dist_sq <= 16:  # outer ring
+						image.set_pixel(px, py, ring_color)
+
+	# Draw entities — 2x3 colored rectangles
+	if entities:
+		var red_color := Color(1.0, 0.1, 0.1)
+		var yellow_color := Color(1.0, 0.9, 0.1)
+		for i in range(entities.count):
+			if entities.alive[i] == 0:
+				continue
+			var ex := int(entities.pos_x[i])
+			var ey := int(entities.pos_y[i])
+			var ecolor := red_color if entities.entity_type[i] == EntityManager.TYPE_RED else yellow_color
+			for dy in range(3):
+				for dx in range(2):
+					var px := ex + dx
+					var py := ey + dy
+					if px >= 0 and px < w and py >= 0 and py < h:
+						image.set_pixel(px, py, ecolor)
 
 	texture.update(image)

@@ -23,6 +23,12 @@ var target_pos: Vector2i = Vector2i(-1, -1)
 var has_target: bool = false
 var target_strength: float = 0.0
 
+# Growth velocity multiplier (boosted by eating yellow food dots)
+var growth_velocity: float = 1.0
+
+# Burn layer (fire damage from red dots)
+var burn_intensity: PackedFloat32Array
+
 
 func init(w: int, h: int) -> void:
 	width = w
@@ -60,6 +66,10 @@ func init(w: int, h: int) -> void:
 	attractor = PackedFloat32Array()
 	attractor.resize(size)
 	attractor.fill(0.0)
+
+	burn_intensity = PackedFloat32Array()
+	burn_intensity.resize(size)
+	burn_intensity.fill(0.0)
 
 
 func idx(x: int, y: int) -> int:
