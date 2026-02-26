@@ -36,10 +36,10 @@ func _process(delta: float) -> void:
 		pan_dir.x += 1.0
 	if pan_dir != Vector2.ZERO:
 		position += pan_dir.normalized() * PAN_SPEED * delta / zoom.x
-	# +/- keys for zoom
-	if Input.is_key_pressed(KEY_EQUAL):
+	# +/- or I/O keys for zoom
+	if Input.is_key_pressed(KEY_EQUAL) or Input.is_key_pressed(KEY_I):
 		_zoom_at(ZOOM_STEP * delta * 3.0)
-	if Input.is_key_pressed(KEY_MINUS):
+	if Input.is_key_pressed(KEY_MINUS) or Input.is_key_pressed(KEY_O):
 		_zoom_at(-ZOOM_STEP * delta * 3.0)
 
 

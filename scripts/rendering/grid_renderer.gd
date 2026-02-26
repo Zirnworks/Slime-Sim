@@ -14,6 +14,7 @@ func setup(g: Grid, tex_rect: TextureRect) -> void:
 	texture = ImageTexture.create_from_image(image)
 	display.texture = texture
 	display.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	display.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# Size the TextureRect to match grid dimensions (1 pixel = 1 world unit)
 	display.custom_minimum_size = Vector2(grid.width, grid.height)
 	display.size = Vector2(grid.width, grid.height)
@@ -24,8 +25,8 @@ func render() -> void:
 	var h := grid.height
 	var ct := grid.cell_type
 	var ce := grid.cell_energy
-	var sm := grid.get_slime_read()
-	var st := grid.get_trail_read()
+	var sm := grid.slime_mass
+	var st := grid.slime_trail
 
 	for y in range(h):
 		var row_offset := y * w

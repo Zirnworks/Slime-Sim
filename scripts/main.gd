@@ -1,9 +1,14 @@
 extends Node2D
 
 const GRID_SIZE := 256
+const NUM_BANDS := 4
 
 var grid: Grid
 var renderer: GridRenderer
+var city_gen: CityGen
+var slime_sim: SlimeSim
+var player_input: Node
+var current_band: int = 0
 
 @onready var grid_display: TextureRect = $GridDisplay
 @onready var sim_camera: Camera2D = $SimCamera
@@ -14,8 +19,18 @@ func _ready() -> void:
 	grid = Grid.new()
 	grid.init(GRID_SIZE, GRID_SIZE)
 
-	# Fill with a test pattern to verify rendering
-	_fill_test_pattern()
+	# Generate city
+	city_gen = CityGen.new()
+	city_gen.generate(grid)
+
+	# Clear a landing zone around center and seed slime
+	var cx: int = GRID_SIZE >> 1
+	var cy: int = GRID_SIZE >> 1
+	_clear_area(cx, cy, 15)
+
+	slime_sim = SlimeSim.new()
+	slime_sim.grid = grid
+	slime_sim.seed_slime(cx, cy, 10, 2.0)
 
 	# Setup renderer
 	renderer = GridRenderer.new()
@@ -25,15 +40,44 @@ func _ready() -> void:
 	# Setup camera
 	sim_camera.setup(GRID_SIZE, GRID_SIZE)
 
+	# Setup player input
+	player_input = preload("res://scripts/input/player_input.gd").new()
+	player_input.grid = grid
+	player_input.camera = sim_camera
+	player_input.grid_display = grid_display
+	add_child(player_input)
 
-func _fill_test_pattern() -> void:
+
+func _clear_area(cx: int, cy: int, radius: int) -> void:
 	var w := grid.width
 	var h := grid.height
-	for y in range(h):
-		for x in range(w):
-			var idx := y * w + x
-			# Checkerboard of different materials
-			var block_x: int = x / 32
-			var block_y: int = y / 32
-			var material_id := (block_x + block_y * 3) % 10
-			grid.cell_type[idx] = material_id
+	for dy in range(-radius, radius + 1):
+		for dx in range(-radius, radius + 1):
+			if dx * dx + dy * dy <= radius * radius:
+				var px := cx + dx
+				var py := cy + dy
+				if px >= 0 and px < w and py >= 0 and py < h:
+					var idx := py * w + px
+					grid.cell_type[idx] = Materials.CellType.DIRT
+					grid.cell_energy[idx] = 1.0
+
+
+func _physics_process(_delta: float) -> void:
+	# Simulate one band per frame
+	var band_height: int = GRID_SIZE / NUM_BANDS
+	var band_start := current_band * band_height
+	var band_end := band_start + band_height
+
+	slime_sim.update_band(band_start, band_end)
+	slime_sim.diffuse_trails_band(band_start, band_end)
+	slime_sim.decay_attractors_band(band_start, band_end)
+
+	current_band = (current_band + 1) % NUM_BANDS
+
+	# Debug: print stats every 60 frames (~1 sec)
+	if Engine.get_physics_frames() % 60 == 0:
+		var stats := slime_sim.get_stats()
+		print("Slime cells: %d  Consumed: %d" % [stats["cells"], stats["consumed"]])
+
+	# Render
+	renderer.render()
