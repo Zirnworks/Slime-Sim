@@ -92,6 +92,7 @@ func update_band(band_start: int, band_end: int) -> void:
 				if ce[nidx] <= 0:
 					# Consumed! Colonize with slime
 					cells_consumed += 1
+					grid.cell_type_under[nidx] = ntype
 					ct[nidx] = Materials.CellType.EMPTY
 					ce[nidx] = 0.0
 					sm[nidx] = COLONIZE_MASS

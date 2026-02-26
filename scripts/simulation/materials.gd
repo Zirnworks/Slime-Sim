@@ -17,14 +17,14 @@ enum CellType {
 # How hard it is to eat (0.0 = instant, 1.0 = nearly indestructible)
 const RESISTANCE: Array[float] = [
 	0.0,   # EMPTY
-	0.4,   # ROAD
-	0.8,   # CONCRETE
-	0.6,   # BRICK
-	0.2,   # GLASS
-	0.1,   # ORGANIC
-	0.05,  # WATER
-	0.2,   # DIRT
-	0.95,  # METAL
+	0.05,  # ROAD — slime oozes right down streets
+	0.92,  # CONCRETE — very slow to digest
+	0.85,  # BRICK — slow to digest
+	0.3,   # GLASS — fragile, breaks fairly fast
+	0.02,  # ORGANIC — devoured almost instantly
+	0.0,   # WATER — free passage
+	0.05,  # DIRT — barely any resistance
+	0.97,  # METAL — nearly indestructible
 	0.0,   # SLIME
 ]
 

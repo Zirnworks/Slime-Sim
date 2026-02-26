@@ -38,9 +38,14 @@ func render() -> void:
 			var trail: float = st[idx]
 
 			if mass > 0.1:
-				# Slime cell — bright green, intensity varies with mass
+				# Slime cell — bright green
 				var intensity := clampf(mass, 0.3, 1.0)
 				color = Color(0.15 * intensity, 0.85 * intensity, 0.08 * intensity)
+				# Darken over building materials to show structure underneath
+				var under_type: int = grid.cell_type_under[idx]
+				if under_type != Materials.CellType.EMPTY and under_type != Materials.CellType.DIRT:
+					var res: float = Materials.RESISTANCE[under_type]
+					color = color.darkened(res * 0.45)
 			elif trail > 0.05:
 				# Trail residue — dim glow over base material
 				var base: Color = Materials.COLORS[ct[idx]]

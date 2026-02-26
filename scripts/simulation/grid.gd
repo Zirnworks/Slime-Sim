@@ -6,6 +6,7 @@ var height: int
 
 # Cell data — flat arrays indexed as [y * width + x]
 var cell_type: PackedByteArray
+var cell_type_under: PackedByteArray  # original type before slime consumed it
 var cell_energy: PackedFloat32Array
 
 # Slime layers (single-buffer, updated in-place)
@@ -26,6 +27,10 @@ func init(w: int, h: int) -> void:
 	cell_type = PackedByteArray()
 	cell_type.resize(size)
 	cell_type.fill(0)
+
+	cell_type_under = PackedByteArray()
+	cell_type_under.resize(size)
+	cell_type_under.fill(0)
 
 	cell_energy = PackedFloat32Array()
 	cell_energy.resize(size)
