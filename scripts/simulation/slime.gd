@@ -15,6 +15,17 @@ const TARGET_BIAS := 15.0         # how strongly the global target influences gr
 const TARGET_RANGE := 80.0        # max distance (pixels) for target influence — tight for tendrils
 const BORDER_ATTACK := 0.1        # base border combat damage per tick
 
+# Pressure wave constants (each owner pulses at different frequency)
+const PULSE_FREQ: Array[float] = [0.05, 0.07, 0.04]
+const PULSE_AMPLITUDE := 0.6      # modulates attack from 0.4x to 1.6x
+
+# Tendril constants
+const TENDRIL_ATTACK_MULT := 3.0  # bonus attack for tendril tips in their direction
+const TENDRIL_SIDE_MULT := 0.3    # weak attack sideways (focused forward)
+const TENDRIL_COUNTER_MULT := 1.5 # extra counter-damage (thin = fragile)
+const TENDRIL_COLONIZE_MASS := 0.85  # high mass = fast maturation
+const TENDRIL_SPIKE_THRESHOLD := 2.0 # spike must exceed this to start a new tendril
+
 # Per-owner traits: [green, orange, blue]
 # Orange: aggressive (high attack, low defense) — pushes tendrils fast, vulnerable to counter
 # Blue: defensive (low attack, high defense) — hard to crack, slow to push
@@ -28,6 +39,7 @@ const DIR_X: Array[int] = [1, -1, 0, 0]
 const DIR_Y: Array[int] = [0, 0, 1, -1]
 
 var grid: Grid
+var frame_count: int = 0
 
 # Per-owner stats
 var cells_consumed: PackedInt32Array  # [3] per owner
@@ -64,6 +76,9 @@ func update_band(band_start: int, band_end: int) -> void:
 	var st := grid.slime_trail
 	var so := grid.slime_owner
 	var attr := grid.attractor
+	var td := grid.tendril_dir
+
+	frame_count += 1
 
 	# Cache per-owner target info
 	var otx := grid.owner_target_x
@@ -115,26 +130,62 @@ func update_band(band_start: int, band_end: int) -> void:
 				if so[nidx] == owner and sm[nidx] > 0.01:
 					continue
 
-				# Enemy slime — border combat with invasion
+				# Enemy slime — border combat with pressure waves + tendrils
 				if so[nidx] != 0 and so[nidx] != owner and sm[nidx] > 0.01:
 					is_frontier = true
 					var enemy_oi: int = so[nidx] - 1
-					# Spiky random: usually weak, occasional powerful hits → fractal edges
+					# Spiky random: usually weak, occasional powerful hits
 					var rng := randf()
 					var spike := rng * rng * 3.5
-					# Attack: own aggression vs enemy resilience
-					var damage := BORDER_ATTACK * OWNER_AGGRESSION[oi] * spike / OWNER_RESILIENCE[enemy_oi]
-					sm[nidx] = maxf(0.0, sm[nidx] - damage)
-					# Light counter-damage to attacker
-					sm[idx] = maxf(0.0, sm[idx] - BORDER_ATTACK * 0.08)
 
-					# Colonize on kill — creates invasion tendrils
+					# Pressure wave: pulsing attack strength
+					var wave_phase := sin(float(frame_count) * PULSE_FREQ[oi] + float(x + y) * 0.15)
+					var pulse_mult := 1.0 + wave_phase * PULSE_AMPLITUDE
+
+					# Tendril: bonus in tendril direction, weak on sides
+					var my_tdir: int = td[idx]
+					var attack_mult := 1.0
+					var counter_mult := 1.0
+					if my_tdir > 0:
+						if d == my_tdir - 1:
+							attack_mult = TENDRIL_ATTACK_MULT
+						else:
+							attack_mult = TENDRIL_SIDE_MULT
+						counter_mult = TENDRIL_COUNTER_MULT
+
+					# Extra damage to enemy tendril cells hit from the side
+					var enemy_td: int = td[nidx]
+					var vuln_mult := 1.0
+					if enemy_td > 0:
+						var etd := enemy_td - 1
+						# Perpendicular? horizontal(0,1) vs vertical(2,3)
+						if (d < 2) != (etd < 2):
+							vuln_mult = TENDRIL_COUNTER_MULT
+
+					# Final damage
+					var damage := BORDER_ATTACK * OWNER_AGGRESSION[oi] * spike * maxf(0.1, pulse_mult) * attack_mult * vuln_mult / OWNER_RESILIENCE[enemy_oi]
+					sm[nidx] = maxf(0.0, sm[nidx] - damage)
+					# Counter-damage to attacker
+					sm[idx] = maxf(0.0, sm[idx] - BORDER_ATTACK * 0.08 * counter_mult)
+
+					# Colonize on kill
 					if sm[nidx] <= 0.0:
 						so[nidx] = owner
-						sm[nidx] = 0.4 + randf() * 0.2
+						if my_tdir > 0 and d == my_tdir - 1:
+							# Propagate tendril forward
+							sm[nidx] = TENDRIL_COLONIZE_MASS
+							td[nidx] = my_tdir
+						elif spike > TENDRIL_SPIKE_THRESHOLD:
+							# Big spike = birth a new tendril
+							sm[nidx] = TENDRIL_COLONIZE_MASS
+							td[nidx] = d + 1
+						else:
+							sm[nidx] = 0.4 + randf() * 0.2
+							td[nidx] = 0
 					# Attacker dies — becomes dead zone
 					if sm[idx] <= 0.0:
 						so[idx] = 0
+						td[idx] = 0
 						break
 					continue
 

@@ -30,6 +30,9 @@ var owner_target_strength: PackedFloat32Array
 # Per-owner growth velocity (boosted by eating yellow food dots)
 var owner_growth_velocity: PackedFloat32Array
 
+# Tendril direction (0=none, 1-4 = cardinal direction index+1 matching DIR_X/DIR_Y)
+var tendril_dir: PackedByteArray
+
 # Burn layer (fire damage from red dots)
 var burn_intensity: PackedFloat32Array
 
@@ -95,6 +98,10 @@ func init(w: int, h: int) -> void:
 	owner_growth_velocity = PackedFloat32Array()
 	owner_growth_velocity.resize(NUM_OWNERS)
 	owner_growth_velocity.fill(1.0)
+
+	tendril_dir = PackedByteArray()
+	tendril_dir.resize(size)
+	tendril_dir.fill(0)
 
 	burn_intensity = PackedFloat32Array()
 	burn_intensity.resize(size)
