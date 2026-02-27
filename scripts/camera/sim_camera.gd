@@ -1,6 +1,6 @@
 extends Camera2D
 
-const ZOOM_MIN := Vector2(0.5, 0.5)
+const ZOOM_MIN := Vector2(0.3, 0.3)
 const ZOOM_MAX := Vector2(8.0, 8.0)
 const ZOOM_STEP := 0.15
 const PAN_SPEED := 200.0
@@ -11,7 +11,7 @@ var grid_width: int = 256
 var grid_height: int = 256
 
 
-func setup(gw: int, gh: int) -> void:
+func setup(gw: int, gh: int, display_scale: int = 2) -> void:
 	grid_width = gw
 	grid_height = gh
 	# No tight limits — let the camera move freely
@@ -19,8 +19,14 @@ func setup(gw: int, gh: int) -> void:
 	limit_top = -10000
 	limit_right = 10000
 	limit_bottom = 10000
-	position = Vector2(gw / 2.0, gh / 2.0)
-	zoom = Vector2(2.0, 2.0)
+	# Center on the display
+	var world_w := float(gw * display_scale)
+	var world_h := float(gh * display_scale)
+	position = Vector2(world_w * 0.5, world_h * 0.5)
+	# Auto-fit: zoom so the entire grid is visible as a square
+	var vp_size := get_viewport_rect().size
+	var fit := minf(vp_size.x / world_w, vp_size.y / world_h)
+	zoom = Vector2(fit, fit)
 
 
 func _process(delta: float) -> void:

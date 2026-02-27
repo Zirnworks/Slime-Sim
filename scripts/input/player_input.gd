@@ -19,15 +19,14 @@ func _input(event: InputEvent) -> void:
 func _set_target() -> void:
 	var grid_pos := _screen_to_grid()
 	if grid_pos.x >= 0:
-		grid.target_pos = grid_pos
-		grid.has_target = true
-		grid.target_strength = 1.0
+		grid.set_owner_target(1, grid_pos, 1.0)  # owner 1 = green (player)
 
 
 func _screen_to_grid() -> Vector2i:
 	var world_pos := camera.get_global_mouse_position()
-	var gx: int = int(floor(world_pos.x))
-	var gy: int = int(floor(world_pos.y))
+	# World is 2x grid (each cell = 2x2 world units)
+	var gx: int = int(floor(world_pos.x / 2.0))
+	var gy: int = int(floor(world_pos.y / 2.0))
 	if gx < 0 or gx >= grid.width or gy < 0 or gy >= grid.height:
 		return Vector2i(-1, -1)
 	return Vector2i(gx, gy)

@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 var label: Label
+var territory_label: Label
 var bar_fill: ColorRect
 var bar_label: Label
 var slime_sim: SlimeSim
@@ -35,6 +36,12 @@ func _ready() -> void:
 	label.add_theme_font_size_override("font_size", 14)
 	vbox.add_child(label)
 
+	# Territory counts
+	territory_label = Label.new()
+	territory_label.add_theme_font_size_override("font_size", 13)
+	territory_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+	vbox.add_child(territory_label)
+
 	# Growth velocity bar
 	bar_label = Label.new()
 	bar_label.add_theme_color_override("font_color", Color(0.95, 0.95, 0.6))
@@ -63,14 +70,21 @@ func _process(_delta: float) -> void:
 	update_timer = 0
 
 	var fps := Engine.get_frames_per_second()
-	var stats := slime_sim.get_stats()
+	var green_stats := slime_sim.get_stats_for_owner(1)
 	label.text = "FPS: %d\nSlime cells: %d\nConsumed: %d" % [
-		fps, stats["cells"], stats["consumed"]
+		fps, green_stats["cells"], green_stats["consumed"]
 	]
 
-	# Update growth velocity bar
+	# Territory counts per owner
+	var orange_stats := slime_sim.get_stats_for_owner(2)
+	var blue_stats := slime_sim.get_stats_for_owner(3)
+	territory_label.text = "Green: %d | Orange: %d | Blue: %d" % [
+		green_stats["cells"], orange_stats["cells"], blue_stats["cells"]
+	]
+
+	# Update growth velocity bar (player/green only)
 	if grid:
-		var gv := grid.growth_velocity
+		var gv: float = grid.owner_growth_velocity[0]
 		bar_label.text = "Growth: %.1fx" % gv
 		var fill_ratio := clampf((gv - 1.0) / 2.0, 0.0, 1.0)  # 1.0=empty, 3.0=full
 		bar_fill.size.x = fill_ratio * BAR_WIDTH

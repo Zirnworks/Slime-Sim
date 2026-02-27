@@ -1,6 +1,8 @@
 class_name Grid
 extends RefCounted
 
+const NUM_OWNERS := 3  # 1=green(player), 2=orange, 3=blue
+
 var width: int
 var height: int
 
@@ -12,19 +14,21 @@ var cell_energy: PackedFloat32Array
 # Slime layers (single-buffer, updated in-place)
 var slime_mass: PackedFloat32Array
 var slime_trail: PackedFloat32Array
+var slime_owner: PackedByteArray       # 0=none, 1=green, 2=orange, 3=blue
 var slime_flow_x: PackedFloat32Array
 var slime_flow_y: PackedFloat32Array
 
 # Player attractor field
 var attractor: PackedFloat32Array
 
-# Global growth target (set by player click)
-var target_pos: Vector2i = Vector2i(-1, -1)
-var has_target: bool = false
-var target_strength: float = 0.0
+# Per-owner targeting (3 elements each, indexed owner-1)
+var owner_target_x: PackedInt32Array
+var owner_target_y: PackedInt32Array
+var owner_has_target: PackedByteArray
+var owner_target_strength: PackedFloat32Array
 
-# Growth velocity multiplier (boosted by eating yellow food dots)
-var growth_velocity: float = 1.0
+# Per-owner growth velocity (boosted by eating yellow food dots)
+var owner_growth_velocity: PackedFloat32Array
 
 # Burn layer (fire damage from red dots)
 var burn_intensity: PackedFloat32Array
@@ -55,6 +59,10 @@ func init(w: int, h: int) -> void:
 	slime_trail.resize(size)
 	slime_trail.fill(0.0)
 
+	slime_owner = PackedByteArray()
+	slime_owner.resize(size)
+	slime_owner.fill(0)
+
 	slime_flow_x = PackedFloat32Array()
 	slime_flow_x.resize(size)
 	slime_flow_x.fill(0.0)
@@ -67,6 +75,27 @@ func init(w: int, h: int) -> void:
 	attractor.resize(size)
 	attractor.fill(0.0)
 
+	# Per-owner arrays (3 elements)
+	owner_target_x = PackedInt32Array()
+	owner_target_x.resize(NUM_OWNERS)
+	owner_target_x.fill(-1)
+
+	owner_target_y = PackedInt32Array()
+	owner_target_y.resize(NUM_OWNERS)
+	owner_target_y.fill(-1)
+
+	owner_has_target = PackedByteArray()
+	owner_has_target.resize(NUM_OWNERS)
+	owner_has_target.fill(0)
+
+	owner_target_strength = PackedFloat32Array()
+	owner_target_strength.resize(NUM_OWNERS)
+	owner_target_strength.fill(0.0)
+
+	owner_growth_velocity = PackedFloat32Array()
+	owner_growth_velocity.resize(NUM_OWNERS)
+	owner_growth_velocity.fill(1.0)
+
 	burn_intensity = PackedFloat32Array()
 	burn_intensity.resize(size)
 	burn_intensity.fill(0.0)
@@ -74,3 +103,15 @@ func init(w: int, h: int) -> void:
 
 func idx(x: int, y: int) -> int:
 	return y * width + x
+
+
+func set_owner_target(owner: int, pos: Vector2i, strength: float) -> void:
+	var oi := owner - 1
+	owner_target_x[oi] = pos.x
+	owner_target_y[oi] = pos.y
+	owner_has_target[oi] = 1
+	owner_target_strength[oi] = strength
+
+
+func get_owner_growth_vel(owner: int) -> float:
+	return owner_growth_velocity[owner - 1]

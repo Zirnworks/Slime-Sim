@@ -1,6 +1,18 @@
 class_name GridRenderer
 extends RefCounted
 
+# Slime colors per owner (indexed owner-1)
+const SLIME_COLORS: Array[Color] = [
+	Color(0.15, 0.85, 0.08),   # green (player)
+	Color(0.9, 0.5, 0.05),     # orange
+	Color(0.2, 0.4, 0.9),      # blue
+]
+const TRAIL_COLORS: Array[Color] = [
+	Color(0.4, 0.6, 0.1),      # green trail
+	Color(0.5, 0.35, 0.08),    # orange trail
+	Color(0.15, 0.25, 0.5),    # blue trail
+]
+
 var image: Image
 var texture: ImageTexture
 var grid: Grid
@@ -16,9 +28,9 @@ func setup(g: Grid, tex_rect: TextureRect) -> void:
 	display.texture = texture
 	display.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	display.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Size the TextureRect to match grid dimensions (1 pixel = 1 world unit)
-	display.custom_minimum_size = Vector2(grid.width, grid.height)
-	display.size = Vector2(grid.width, grid.height)
+	# Each cell = 2x2 world units (NEAREST filtering makes crisp pixels)
+	display.custom_minimum_size = Vector2(grid.width * 2, grid.height * 2)
+	display.size = Vector2(grid.width * 2, grid.height * 2)
 
 
 func render() -> void:
@@ -28,6 +40,7 @@ func render() -> void:
 	var ce := grid.cell_energy
 	var sm := grid.slime_mass
 	var st := grid.slime_trail
+	var so := grid.slime_owner
 
 	for y in range(h):
 		var row_offset := y * w
@@ -37,20 +50,26 @@ func render() -> void:
 
 			var mass: float = sm[idx]
 			var trail: float = st[idx]
+			var owner: int = so[idx]
 
-			if mass > 0.1:
-				# Slime cell — bright green
+			if mass > 0.1 and owner > 0:
+				# Slime cell — colored by owner
+				var base_color: Color = SLIME_COLORS[owner - 1]
 				var intensity := clampf(mass, 0.3, 1.0)
-				color = Color(0.15 * intensity, 0.85 * intensity, 0.08 * intensity)
+				color = Color(base_color.r * intensity, base_color.g * intensity, base_color.b * intensity)
 				# Darken over building materials to show structure underneath
 				var under_type: int = grid.cell_type_under[idx]
 				if under_type != Materials.CellType.EMPTY and under_type != Materials.CellType.DIRT:
 					var res: float = Materials.RESISTANCE[under_type]
 					color = color.darkened(res * 0.45)
 			elif trail > 0.05:
-				# Trail residue — dim glow over base material
+				# Trail residue — use owner color if cell was recently owned, else neutral
 				var base: Color = Materials.COLORS[ct[idx]]
-				var trail_color := Color(0.4, 0.6, 0.1)
+				var trail_color: Color
+				if owner > 0:
+					trail_color = TRAIL_COLORS[owner - 1]
+				else:
+					trail_color = Color(0.4, 0.4, 0.2)  # neutral trail for dead zones
 				color = base.lerp(trail_color, clampf(trail * 0.5, 0.0, 0.6))
 			else:
 				# Base material color
@@ -83,10 +102,10 @@ func render() -> void:
 
 			image.set_pixel(x, y, color)
 
-	# Draw player target marker — white, large, distinct blink
-	if grid.has_target:
-		var tx := grid.target_pos.x
-		var ty := grid.target_pos.y
+	# Draw player target marker — white, large, distinct blink (green/player only)
+	if grid.owner_has_target[0] == 1:
+		var tx: int = grid.owner_target_x[0]
+		var ty: int = grid.owner_target_y[0]
 		# Sharp on/off blink (visible 70% of the time)
 		var blink := fmod(Time.get_ticks_msec() * 0.003, 1.0) < 0.7
 		if blink:

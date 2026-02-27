@@ -301,14 +301,14 @@ func _update_red(i: int, w: int, h: int, sm: PackedFloat32Array) -> void:
 	var center_x := gx + 1
 	var center_y := gy + 1
 
-	# Check if on slime
+	# Check if on slime (any owner)
 	var on_slime := false
 	for dy in range(3):
 		for dx in range(2):
 			var cx := gx + dx
 			var cy := gy + dy
 			if cx >= 0 and cx < w and cy >= 0 and cy < h:
-				if sm[cy * w + cx] > 0.01:
+				if sm[cy * w + cx] > 0.01 and grid.slime_owner[cy * w + cx] != 0:
 					on_slime = true
 					break
 		if on_slime:
@@ -357,10 +357,13 @@ func _update_yellow(i: int, w: int, h: int, sm: PackedFloat32Array) -> void:
 
 	# Check if consumed by slime
 	if gx >= 0 and gx < w and gy >= 0 and gy < h:
-		if sm[gy * w + gx] > 0.5:
+		var cell_idx := gy * w + gx
+		if sm[cell_idx] > 0.5 and grid.slime_owner[cell_idx] != 0:
 			alive[i] = 0
 			respawn_timer[i] = RESPAWN_DELAY
-			grid.growth_velocity = minf(grid.growth_velocity + YELLOW_BOOST, 3.0)
+			var consuming_owner: int = grid.slime_owner[cell_idx]
+			var oi := consuming_owner - 1
+			grid.owner_growth_velocity[oi] = minf(grid.owner_growth_velocity[oi] + YELLOW_BOOST, 3.0)
 			# Visual reward: bright green pulse
 			for edy in range(-4, 5):
 				for edx in range(-4, 5):

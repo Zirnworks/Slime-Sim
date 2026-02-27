@@ -13,6 +13,15 @@ const ATTRACTOR_WEIGHT := 5.0
 const TRAIL_WEIGHT := 2.0
 const TARGET_BIAS := 15.0         # how strongly the global target influences growth direction
 const TARGET_RANGE := 80.0        # max distance (pixels) for target influence — tight for tendrils
+const BORDER_ATTACK := 0.1        # base border combat damage per tick
+
+# Per-owner traits: [green, orange, blue]
+# Orange: aggressive (high attack, low defense) — pushes tendrils fast, vulnerable to counter
+# Blue: defensive (low attack, high defense) — hard to crack, slow to push
+# Green: balanced — depends on player targeting skill
+const OWNER_AGGRESSION: Array[float] = [1.0, 1.5, 0.7]
+const OWNER_RESILIENCE: Array[float] = [1.0, 0.7, 1.5]
+const OWNER_GROW_MULT: Array[float] = [1.0, 0.85, 1.15]
 
 # Cardinal directions
 const DIR_X: Array[int] = [1, -1, 0, 0]
@@ -20,12 +29,17 @@ const DIR_Y: Array[int] = [0, 0, 1, -1]
 
 var grid: Grid
 
-# Stats
-var total_mass: float = 0.0
-var cells_consumed: int = 0
+# Per-owner stats
+var cells_consumed: PackedInt32Array  # [3] per owner
 
 
-func seed_slime(cx: int, cy: int, radius: int = 5, _mass: float = 1.0) -> void:
+func _init() -> void:
+	cells_consumed = PackedInt32Array()
+	cells_consumed.resize(Grid.NUM_OWNERS)
+	cells_consumed.fill(0)
+
+
+func seed_slime(cx: int, cy: int, radius: int, _mass: float, owner: int) -> void:
 	var w := grid.width
 	var h := grid.height
 	for dy in range(-radius, radius + 1):
@@ -36,6 +50,7 @@ func seed_slime(cx: int, cy: int, radius: int = 5, _mass: float = 1.0) -> void:
 				if x >= 0 and x < w and y >= 0 and y < h:
 					var idx := y * w + x
 					grid.slime_mass[idx] = 1.0
+					grid.slime_owner[idx] = owner
 					grid.cell_type[idx] = Materials.CellType.EMPTY
 					grid.cell_energy[idx] = 0.0
 
@@ -47,14 +62,15 @@ func update_band(band_start: int, band_end: int) -> void:
 	var ce := grid.cell_energy
 	var sm := grid.slime_mass
 	var st := grid.slime_trail
+	var so := grid.slime_owner
 	var attr := grid.attractor
 
-	# Cache global target info
-	var has_target := grid.has_target
-	var target_x: int = grid.target_pos.x if has_target else 0
-	var target_y: int = grid.target_pos.y if has_target else 0
-	var t_strength: float = grid.target_strength if has_target else 0.0
-	var growth_vel: float = grid.growth_velocity
+	# Cache per-owner target info
+	var otx := grid.owner_target_x
+	var oty := grid.owner_target_y
+	var oht := grid.owner_has_target
+	var ots := grid.owner_target_strength
+	var ogv := grid.owner_growth_velocity
 
 	for y in range(band_start, mini(band_end, h)):
 		var row_off := y * w
@@ -62,6 +78,13 @@ func update_band(band_start: int, band_end: int) -> void:
 			var idx := row_off + x
 			if sm[idx] < 0.01:
 				continue
+
+			var owner: int = so[idx]
+			if owner == 0:
+				continue  # orphaned mass, skip
+
+			var oi := owner - 1  # 0-based index for per-owner arrays
+			var growth_vel: float = ogv[oi] * OWNER_GROW_MULT[oi]
 
 			# --- MATURE: immature slime slowly grows toward 1.0 ---
 			if sm[idx] < 1.0:
@@ -74,6 +97,12 @@ func update_band(band_start: int, band_end: int) -> void:
 
 			var is_frontier := false
 
+			# Cache this owner's target
+			var has_target: bool = oht[oi] == 1
+			var target_x: int = otx[oi] if has_target else 0
+			var target_y: int = oty[oi] if has_target else 0
+			var t_strength: float = ots[oi] if has_target else 0.0
+
 			# --- FRONTIER: eat and colonize neighbors ---
 			for d in range(4):
 				var nx := x + DIR_X[d]
@@ -81,22 +110,49 @@ func update_band(band_start: int, band_end: int) -> void:
 				if nx < 0 or nx >= w or ny < 0 or ny >= h:
 					continue
 				var nidx := ny * w + nx
-				var ntype: int = ct[nidx]
 
-				# Skip already-slimed cells
+				# Skip cells owned by same slime
+				if so[nidx] == owner and sm[nidx] > 0.01:
+					continue
+
+				# Enemy slime — border combat with invasion
+				if so[nidx] != 0 and so[nidx] != owner and sm[nidx] > 0.01:
+					is_frontier = true
+					var enemy_oi: int = so[nidx] - 1
+					# Spiky random: usually weak, occasional powerful hits → fractal edges
+					var rng := randf()
+					var spike := rng * rng * 3.5
+					# Attack: own aggression vs enemy resilience
+					var damage := BORDER_ATTACK * OWNER_AGGRESSION[oi] * spike / OWNER_RESILIENCE[enemy_oi]
+					sm[nidx] = maxf(0.0, sm[nidx] - damage)
+					# Light counter-damage to attacker
+					sm[idx] = maxf(0.0, sm[idx] - BORDER_ATTACK * 0.08)
+
+					# Colonize on kill — creates invasion tendrils
+					if sm[nidx] <= 0.0:
+						so[nidx] = owner
+						sm[nidx] = 0.4 + randf() * 0.2
+					# Attacker dies — becomes dead zone
+					if sm[idx] <= 0.0:
+						so[idx] = 0
+						break
+					continue
+
+				# Unowned cell with no mass — potential colonization target
 				if sm[nidx] > 0.01:
 					continue
 
 				is_frontier = true
 
-				if ntype == Materials.CellType.EMPTY:
+				if ct[nidx] == Materials.CellType.EMPTY:
 					# Empty cell — colonize immediately at full strength
 					sm[nidx] = 1.0
-					cells_consumed += 1
+					so[nidx] = owner
+					cells_consumed[oi] += 1
 					continue
 
 				# Eat the cell: flat rate scaled by inverse resistance
-				var resistance: float = Materials.RESISTANCE[ntype]
+				var resistance: float = Materials.RESISTANCE[ct[nidx]]
 				var eat_power := EAT_RATE * (1.0 - resistance * 0.8) * growth_vel
 
 				# Attractor boost: eat faster toward attractors
@@ -126,10 +182,11 @@ func update_band(band_start: int, band_end: int) -> void:
 				ce[nidx] -= eat_power
 				if ce[nidx] <= 0:
 					# Consumed! Colonize with low mass — needs time to mature
-					cells_consumed += 1
-					grid.cell_type_under[nidx] = ntype
+					cells_consumed[oi] += 1
+					grid.cell_type_under[nidx] = ct[nidx]
 					ct[nidx] = Materials.CellType.EMPTY
 					ce[nidx] = 0.0
+					so[nidx] = owner
 					# Building cells start weak, open terrain starts strong
 					sm[nidx] = 1.0 - resistance * 0.8
 
@@ -185,15 +242,18 @@ func decay_attractors_band(band_start: int, band_end: int, band_index: int) -> v
 			if burn[bidx] > 0.001:
 				burn[bidx] *= 0.985
 
-	# Decay growth velocity once per full cycle (on first band only)
-	if band_index == 0 and grid.growth_velocity > 1.0:
-		grid.growth_velocity = maxf(1.0, grid.growth_velocity * 0.998)
+	# Decay all owners' growth velocity once per full cycle (on first band only)
+	if band_index == 0:
+		for oi in range(Grid.NUM_OWNERS):
+			if grid.owner_growth_velocity[oi] > 1.0:
+				grid.owner_growth_velocity[oi] = maxf(1.0, grid.owner_growth_velocity[oi] * 0.998)
 
 
-func get_stats() -> Dictionary:
+func get_stats_for_owner(owner: int) -> Dictionary:
 	var slime_cells := 0
 	var sm := grid.slime_mass
+	var so := grid.slime_owner
 	for i in range(grid.width * grid.height):
-		if sm[i] > 0.01:
+		if sm[i] > 0.01 and so[i] == owner:
 			slime_cells += 1
-	return {"cells": slime_cells, "consumed": cells_consumed}
+	return {"cells": slime_cells, "consumed": cells_consumed[owner - 1]}
