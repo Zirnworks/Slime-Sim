@@ -29,8 +29,8 @@ func setup(g: Grid, tex_rect: TextureRect) -> void:
 	display.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	display.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# Each cell = 2x2 world units (NEAREST filtering makes crisp pixels)
-	display.custom_minimum_size = Vector2(grid.width * 2, grid.height * 2)
-	display.size = Vector2(grid.width * 2, grid.height * 2)
+	display.custom_minimum_size = Vector2(grid.width * 4, grid.height * 4)
+	display.size = Vector2(grid.width * 4, grid.height * 4)
 
 
 func render() -> void:

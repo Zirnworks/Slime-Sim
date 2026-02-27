@@ -1,7 +1,8 @@
 extends Node2D
 
-const GRID_SIZE := 512
-const NUM_BANDS := 8
+const GRID_SIZE := 256
+const NUM_BANDS := 4
+const DISPLAY_SCALE := 4
 const AI_TARGET_INTERVAL := 300  # frames between AI retargeting (~5 sec at 60fps)
 
 var grid: Grid
@@ -56,7 +57,7 @@ func _ready() -> void:
 	renderer.render()
 
 	# Setup camera
-	sim_camera.setup(GRID_SIZE, GRID_SIZE)
+	sim_camera.setup(GRID_SIZE, GRID_SIZE, DISPLAY_SCALE)
 
 	# Setup player input
 	player_input = preload("res://scripts/input/player_input.gd").new()
@@ -66,7 +67,7 @@ func _ready() -> void:
 
 	# Setup entities
 	entities = EntityManager.new()
-	entities.init(grid, 25, 45)
+	entities.init(grid, 20, 35)
 	renderer.entities = entities
 
 	# Setup HUD

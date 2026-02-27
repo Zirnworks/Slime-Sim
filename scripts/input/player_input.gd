@@ -25,8 +25,8 @@ func _set_target() -> void:
 func _screen_to_grid() -> Vector2i:
 	var world_pos := camera.get_global_mouse_position()
 	# World is 2x grid (each cell = 2x2 world units)
-	var gx: int = int(floor(world_pos.x / 2.0))
-	var gy: int = int(floor(world_pos.y / 2.0))
+	var gx: int = int(floor(world_pos.x / 4.0))
+	var gy: int = int(floor(world_pos.y / 4.0))
 	if gx < 0 or gx >= grid.width or gy < 0 or gy >= grid.height:
 		return Vector2i(-1, -1)
 	return Vector2i(gx, gy)
